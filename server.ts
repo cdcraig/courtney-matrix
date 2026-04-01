@@ -6,9 +6,11 @@ import { join } from 'path';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3456');
-const DATA_DIR = process.env.DATA_DIR || import.meta.dirname;
+const DATA_DIR = process.env.DATA_DIR || process.cwd();
 const DATA_FILE = join(DATA_DIR, 'data.json');
 const PASSWORD = process.env.MATRIX_PASSWORD || 'courtney2026';
+
+console.log(`Config: PORT=${PORT}, DATA_DIR=${DATA_DIR}, DATA_FILE=${DATA_FILE}`);
 
 app.use(cors());
 app.use(cookieParser());
@@ -56,9 +58,10 @@ app.post('/auth', express.urlencoded({ extended: false }), (req, res) => {
   }
 });
 
-// Auth middleware — skip for /auth routes
+// Auth middleware — skip for /auth and /api/health
 app.use((req, res, next) => {
   if (req.path.startsWith('/auth')) return next();
+  if (req.path === '/api/health') return next();
   if (req.cookies?.matrix_auth === '1') return next();
   res.redirect('/auth');
 });
@@ -84,9 +87,9 @@ app.post('/api/data', (req, res) => {
 });
 
 // Serve frontend
-const distPath = join(import.meta.dirname, 'dist');
+const distPath = join(process.cwd(), 'dist');
 app.use(express.static(distPath));
-app.get('*', (_req, res) => {
+app.get('/{*splat}', (_req, res) => {
   const index = join(distPath, 'index.html');
   if (existsSync(index)) {
     res.sendFile(index);
