@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { MatrixData, Status, Task, Group, Column } from '../data';
-import { nextStatus, generateId } from '../data';
+import { generateId } from '../data';
 import { ColumnHeader } from './ColumnHeader';
 import { GroupHeader } from './GroupHeader';
 import { TaskRow } from './TaskRow';
 import { Legend } from './Legend';
+import { StatusPicker } from './StatusPicker';
 
 interface Props {
   data: MatrixData;
@@ -12,21 +13,73 @@ interface Props {
   onReset: () => void;
 }
 
+interface DragInfo {
+  type: 'task' | 'group';
+  taskId?: string;
+  fromGroupId: string;
+  fromIndex: number;
+}
+
+const LABEL_WIDTH_KEY = 'courtney-matrix-label-width';
+
 export function Matrix({ data, onChange, onReset }: Props) {
   const [addingTaskGroup, setAddingTaskGroup] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState('');
+  const dragInfo = useRef<DragInfo | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ groupId: string; index: number } | null>(null);
+  const [groupDropTarget, setGroupDropTarget] = useState<number | null>(null);
+  const groupDropRef = useRef<number | null>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const resizing = useRef(false);
+  const [labelWidth, setLabelWidth] = useState(() => {
+    const stored = localStorage.getItem(LABEL_WIDTH_KEY);
+    return stored ? parseInt(stored, 10) : 300;
+  });
+
+  // Column header status picker
+  const [colPicker, setColPicker] = useState<{ colId: string; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem(LABEL_WIDTH_KEY, String(labelWidth));
+  }, [labelWidth]);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizing.current = true;
+    const startX = e.clientX;
+    const startWidth = labelWidth;
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      const newWidth = Math.max(150, Math.min(600, startWidth + delta));
+      setLabelWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      resizing.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [labelWidth]);
 
   const update = (partial: Partial<MatrixData>) => {
     onChange({ ...data, ...partial });
   };
 
-  const updateColumn = (colId: string, patch: Partial<typeof data.columns[0]>) => {
+  const updateColumn = (colId: string, patch: Partial<Column>) => {
     update({
       columns: data.columns.map((c) => (c.id === colId ? { ...c, ...patch } : c)),
     });
   };
 
-  const updateGroup = (groupId: string, patch: Partial<typeof data.groups[0]>) => {
+  const updateGroup = (groupId: string, patch: Partial<Group>) => {
     update({
       groups: data.groups.map((g) => (g.id === groupId ? { ...g, ...patch } : g)),
     });
@@ -50,17 +103,15 @@ export function Matrix({ data, onChange, onReset }: Props) {
     });
   };
 
-  const cycleCell = (groupId: string, taskId: string, colId: string) => {
+  const setCell = (groupId: string, taskId: string, colId: string, status: Status) => {
     const group = data.groups.find((g) => g.id === groupId);
     const task = group?.tasks.find((t) => t.id === taskId);
     if (!task) return;
-    const current: Status = task.cells[colId] || 'empty';
-    const next = nextStatus(current);
     const newCells = { ...task.cells };
-    if (next === 'empty') {
+    if (status === 'empty') {
       delete newCells[colId];
     } else {
-      newCells[colId] = next;
+      newCells[colId] = status;
     }
     updateTaskInGroup(groupId, { ...task, cells: newCells });
   };
@@ -88,7 +139,7 @@ export function Matrix({ data, onChange, onReset }: Props) {
   };
 
   const addColumn = () => {
-    const newCol = {
+    const newCol: Column = {
       id: generateId(),
       name: 'New Column',
       subtitle: '',
@@ -112,19 +163,119 @@ export function Matrix({ data, onChange, onReset }: Props) {
   };
 
   const addGroup = () => {
-    const newGroup = {
+    const newGroup: Group = {
       id: generateId(),
       name: 'New Group',
       tasks: [],
     };
-    update({ groups: [...data.groups, newGroup] });
+    update({ groups: [newGroup, ...data.groups] });
   };
 
   const removeGroup = (groupId: string) => {
     update({ groups: data.groups.filter((g) => g.id !== groupId) });
   };
 
-  // Total columns = 1 (task name) + columns.length + 1 (separator)
+  // Task drag and drop
+  const handleDragStart = useCallback((taskId: string, groupId: string, index: number) => {
+    dragInfo.current = { type: 'task', taskId, fromGroupId: groupId, fromIndex: index };
+  }, []);
+
+  const handleDragOver = useCallback((groupId: string, index: number) => {
+    setDropTarget({ groupId, index });
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    if (!dragInfo.current || dragInfo.current.type !== 'task' || !dropTarget) {
+      dragInfo.current = null;
+      setDropTarget(null);
+      return;
+    }
+
+    const { taskId, fromGroupId } = dragInfo.current;
+    const { groupId: toGroupId, index: toIndex } = dropTarget;
+
+    const fromGroup = data.groups.find((g) => g.id === fromGroupId);
+    const task = fromGroup?.tasks.find((t) => t.id === taskId);
+    if (!task) {
+      dragInfo.current = null;
+      setDropTarget(null);
+      return;
+    }
+
+    const newGroups = data.groups.map((g) => {
+      if (g.id === fromGroupId && g.id === toGroupId) {
+        const tasks = [...g.tasks];
+        const fromIdx = tasks.findIndex((t) => t.id === taskId);
+        tasks.splice(fromIdx, 1);
+        const insertAt = toIndex > fromIdx ? toIndex - 1 : toIndex;
+        tasks.splice(insertAt, 0, { ...task, foundation: g.foundation });
+        return { ...g, tasks };
+      } else if (g.id === fromGroupId) {
+        return { ...g, tasks: g.tasks.filter((t) => t.id !== taskId) };
+      } else if (g.id === toGroupId) {
+        const tasks = [...g.tasks];
+        tasks.splice(toIndex, 0, { ...task, foundation: g.foundation });
+        return { ...g, tasks };
+      }
+      return g;
+    });
+
+    onChange({ ...data, groups: newGroups });
+    dragInfo.current = null;
+    setDropTarget(null);
+  }, [data, dropTarget, onChange]);
+
+  const handleDragLeave = useCallback(() => {
+    setDropTarget(null);
+  }, []);
+
+  // Group drag and drop
+  const handleGroupDragStart = useCallback((groupId: string, index: number) => {
+    dragInfo.current = { type: 'group', fromGroupId: groupId, fromIndex: index };
+  }, []);
+
+  const handleGroupDragOver = useCallback((index: number) => {
+    groupDropRef.current = index;
+    setGroupDropTarget(index);
+  }, []);
+
+  const handleGroupDragEnd = useCallback(() => {
+    const target = groupDropRef.current;
+    if (!dragInfo.current || dragInfo.current.type !== 'group' || target === null) {
+      dragInfo.current = null;
+      groupDropRef.current = null;
+      setGroupDropTarget(null);
+      return;
+    }
+
+    const { fromIndex } = dragInfo.current;
+
+    if (fromIndex !== target) {
+      const newGroups = [...data.groups];
+      const [moved] = newGroups.splice(fromIndex, 1);
+      const insertAt = target > fromIndex ? target - 1 : target;
+      newGroups.splice(insertAt, 0, moved);
+      onChange({ ...data, groups: newGroups });
+    }
+
+    dragInfo.current = null;
+    groupDropRef.current = null;
+    setGroupDropTarget(null);
+  }, [data, onChange]);
+
+  // Column header status picker
+  const handleColStatusClick = useCallback((colId: string, e: React.MouseEvent) => {
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setColPicker({ colId, x: rect.left, y: rect.bottom + 4 });
+  }, []);
+
+  const handleColStatusSelect = useCallback((status: Status) => {
+    if (colPicker) {
+      updateColumn(colPicker.colId, { status });
+    }
+    setColPicker(null);
+  }, [colPicker]);
+
   const totalCols = 1 + data.columns.length + 1;
 
   return (
@@ -134,13 +285,14 @@ export function Matrix({ data, onChange, onReset }: Props) {
         <span className="title-date">April 2026</span>
       </div>
       <div className="matrix-card">
-        <table className="matrix-table">
+        <table className="matrix-table" ref={tableRef} style={{ '--label-col-width': `${labelWidth}px` } as React.CSSProperties}>
           <thead>
             <tr>
               <th className="corner-cell">
                 <button className="add-group-btn" onClick={addGroup} title="Add group">
                   + Group
                 </button>
+                <div className="col-resize-handle" onMouseDown={handleResizeStart} />
               </th>
               {data.columns.map((col, i) => {
                 const cells = [];
@@ -153,8 +305,9 @@ export function Matrix({ data, onChange, onReset }: Props) {
                     column={col}
                     onEditName={(name) => updateColumn(col.id, { name })}
                     onEditSubtitle={(subtitle) => updateColumn(col.id, { subtitle })}
-                    onStatusClick={() => updateColumn(col.id, { status: nextStatus(col.status) })}
+                    onStatusClick={(e) => handleColStatusClick(col.id, e)}
                     onRemove={() => removeColumn(col.id)}
+                    onImageChange={(image) => updateColumn(col.id, { image })}
                   />
                 );
                 return cells;
@@ -165,23 +318,33 @@ export function Matrix({ data, onChange, onReset }: Props) {
             </tr>
           </thead>
           <tbody>
-            {data.groups.map((group) => (
+            {data.groups.map((group, groupIndex) => (
               <GroupRows
                 key={group.id}
                 group={group}
+                groupIndex={groupIndex}
                 columns={data.columns}
                 separatorAfter={data.separatorAfter}
                 totalCols={totalCols}
                 addingTaskGroup={addingTaskGroup}
                 newTaskName={newTaskName}
+                dropTarget={dropTarget}
+                groupDropTarget={groupDropTarget}
                 onSetAddingTaskGroup={setAddingTaskGroup}
                 onSetNewTaskName={setNewTaskName}
                 onAddTask={addTask}
                 onUpdateTaskInGroup={updateTaskInGroup}
                 onRemoveTask={removeTask}
-                onCycleCell={cycleCell}
+                onSetCell={setCell}
                 onUpdateGroup={updateGroup}
                 onRemoveGroup={removeGroup}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+                onDragLeave={handleDragLeave}
+                onGroupDragStart={handleGroupDragStart}
+                onGroupDragOver={handleGroupDragOver}
+                onGroupDragEnd={handleGroupDragEnd}
               />
             ))}
           </tbody>
@@ -191,42 +354,70 @@ export function Matrix({ data, onChange, onReset }: Props) {
         <Legend />
         <button className="reset-btn" onClick={onReset}>Reset to defaults</button>
       </div>
+      {colPicker && (
+        <StatusPicker
+          current={data.columns.find(c => c.id === colPicker.colId)?.status || 'empty'}
+          onSelect={handleColStatusSelect}
+          onClose={() => setColPicker(null)}
+          position={{ x: colPicker.x, y: colPicker.y }}
+        />
+      )}
     </div>
   );
 }
 
 interface GroupRowsProps {
   group: Group;
+  groupIndex: number;
   columns: Column[];
   separatorAfter: number;
   totalCols: number;
   addingTaskGroup: string | null;
   newTaskName: string;
+  dropTarget: { groupId: string; index: number } | null;
+  groupDropTarget: number | null;
   onSetAddingTaskGroup: (id: string | null) => void;
   onSetNewTaskName: (name: string) => void;
   onAddTask: (groupId: string) => void;
   onUpdateTaskInGroup: (groupId: string, task: Task) => void;
   onRemoveTask: (groupId: string, taskId: string) => void;
-  onCycleCell: (groupId: string, taskId: string, colId: string) => void;
-  onUpdateGroup: (groupId: string, patch: any) => void;
+  onSetCell: (groupId: string, taskId: string, colId: string, status: Status) => void;
+  onUpdateGroup: (groupId: string, patch: Partial<Group>) => void;
   onRemoveGroup: (groupId: string) => void;
+  onDragStart: (taskId: string, groupId: string, index: number) => void;
+  onDragOver: (groupId: string, index: number) => void;
+  onDragEnd: () => void;
+  onDragLeave: () => void;
+  onGroupDragStart: (groupId: string, index: number) => void;
+  onGroupDragOver: (index: number) => void;
+  onGroupDragEnd: () => void;
 }
 
 function GroupRows({
   group,
+  groupIndex,
   columns,
   separatorAfter,
   totalCols,
   addingTaskGroup,
   newTaskName,
+  dropTarget,
+  groupDropTarget,
   onSetAddingTaskGroup,
   onSetNewTaskName,
   onAddTask,
   onUpdateTaskInGroup,
   onRemoveTask,
-  onCycleCell,
+  onSetCell,
   onUpdateGroup,
   onRemoveGroup,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDragLeave,
+  onGroupDragStart,
+  onGroupDragOver,
+  onGroupDragEnd,
 }: GroupRowsProps) {
   return (
     <>
@@ -235,8 +426,18 @@ function GroupRows({
         colSpan={totalCols + 1}
         onEdit={(name: string) => onUpdateGroup(group.id, { name })}
         onRemove={() => onRemoveGroup(group.id)}
+        groupId={group.id}
+        groupIndex={groupIndex}
+        onDragOver={() => onDragOver(group.id, 0)}
+        onDragLeave={onDragLeave}
+        onDrop={onDragEnd}
+        isDropTarget={dropTarget?.groupId === group.id && dropTarget?.index === 0 && group.tasks.length === 0}
+        onGroupDragStart={() => onGroupDragStart(group.id, groupIndex)}
+        onGroupDragOver={() => onGroupDragOver(groupIndex)}
+        onGroupDragEnd={onGroupDragEnd}
+        isGroupDropTarget={groupDropTarget === groupIndex}
       />
-      {group.tasks.map((task: Task) => (
+      {group.tasks.map((task: Task, index: number) => (
         <TaskRow
           key={task.id}
           task={task}
@@ -244,10 +445,26 @@ function GroupRows({
           separatorAfter={separatorAfter}
           onUpdateTask={(t: Task) => onUpdateTaskInGroup(group.id, t)}
           onRemove={() => onRemoveTask(group.id, task.id)}
-          onCellClick={(colId: string) => onCycleCell(group.id, task.id, colId)}
+          onCellClick={(colId: string, status: Status) => onSetCell(group.id, task.id, colId, status)}
+          draggable
+          onDragStart={() => onDragStart(task.id, group.id, index)}
+          onDragOver={(e: React.DragEvent) => {
+            e.preventDefault();
+            onDragOver(group.id, index);
+          }}
+          onDragEnd={onDragEnd}
+          isDropTarget={dropTarget?.groupId === group.id && dropTarget?.index === index}
         />
       ))}
-      <tr className="add-task-row">
+      <tr
+        className={`drop-zone-row ${dropTarget?.groupId === group.id && dropTarget?.index === group.tasks.length ? 'drop-zone-active' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          onDragOver(group.id, group.tasks.length);
+        }}
+        onDragLeave={onDragLeave}
+        onDrop={onDragEnd}
+      >
         <td colSpan={totalCols + 1}>
           {addingTaskGroup === group.id ? (
             <input

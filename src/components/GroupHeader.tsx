@@ -3,12 +3,50 @@ interface Props {
   colSpan: number;
   onEdit: (name: string) => void;
   onRemove: () => void;
+  groupId: string;
+  groupIndex: number;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+  isDropTarget?: boolean;
+  onGroupDragStart: () => void;
+  onGroupDragOver: () => void;
+  onGroupDragEnd: () => void;
+  isGroupDropTarget?: boolean;
 }
 
-export function GroupHeader({ name, colSpan, onEdit, onRemove }: Props) {
+export function GroupHeader({ name, colSpan, onEdit, onRemove, onDragOver, onDragLeave, onDrop, isDropTarget, onGroupDragStart, onGroupDragOver, onGroupDragEnd, isGroupDropTarget }: Props) {
   return (
-    <tr className="group-header-row">
+    <tr
+      className={`group-header-row ${isDropTarget ? 'drop-target' : ''} ${isGroupDropTarget ? 'group-drop-target' : ''}`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('application/x-group-drag', 'group');
+        onGroupDragStart();
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        // Check if this is a group drag or task drag
+        if (e.dataTransfer.types.includes('application/x-group-drag')) {
+          onGroupDragOver();
+        } else {
+          onDragOver();
+        }
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => {
+        e.preventDefault();
+        if (e.dataTransfer.types.includes('application/x-group-drag')) {
+          onGroupDragEnd();
+        } else {
+          onDrop();
+        }
+      }}
+      onDragEnd={onGroupDragEnd}
+    >
       <td colSpan={colSpan} className="group-header-cell">
+        <span className="group-drag-handle" title="Drag to reorder group">☰</span>
         <span
           className="group-header-name"
           contentEditable

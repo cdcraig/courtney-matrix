@@ -1,7 +1,7 @@
 import { STATUS_COLORS, STATUS_LABELS } from '../data';
 import type { Status } from '../data';
 
-const LEGEND_STATUSES: Status[] = ['done', 'wip', 'review', 'blocked', 'deferred', 'todo'];
+const LEGEND_STATUSES: Status[] = ['done', 'wip', 'blocked', 'todo'];
 
 export function Legend() {
   return (
@@ -15,8 +15,8 @@ export function Legend() {
               width: 10,
               height: 10,
               borderRadius: '50%',
-              backgroundColor: s === 'deferred' ? 'white' : STATUS_COLORS[s],
-              border: s === 'deferred' ? `2px solid ${STATUS_COLORS.deferred}` : 'none',
+              backgroundColor: s === 'todo' ? 'white' : STATUS_COLORS[s],
+              border: s === 'todo' ? `2px solid ${STATUS_COLORS.todo}` : 'none',
               boxSizing: 'border-box',
               marginRight: 6,
               verticalAlign: 'middle',

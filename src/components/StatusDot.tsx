@@ -5,10 +5,11 @@ interface Props {
   status: Status;
   onClick: () => void;
   size?: number;
+  alwaysVisible?: boolean;
 }
 
-export function StatusDot({ status, onClick, size = 10 }: Props) {
-  const isDeferred = status === 'deferred';
+export function StatusDot({ status, onClick, size = 10, alwaysVisible = false }: Props) {
+  const isTodo = status === 'todo';
   const isEmpty = status === 'empty';
 
   return (
@@ -20,13 +21,13 @@ export function StatusDot({ status, onClick, size = 10 }: Props) {
         width: size,
         height: size,
         borderRadius: '50%',
-        backgroundColor: isDeferred || isEmpty ? 'white' : STATUS_COLORS[status],
-        border: isDeferred ? `2px solid ${STATUS_COLORS.deferred}` : isEmpty ? 'none' : 'none',
+        backgroundColor: isTodo ? 'white' : isEmpty ? (alwaysVisible ? 'transparent' : 'white') : STATUS_COLORS[status],
+        border: isTodo ? `2px solid ${STATUS_COLORS.todo}` : isEmpty && alwaysVisible ? '2px dashed #ddd' : 'none',
         cursor: 'pointer',
         boxSizing: 'border-box',
-        visibility: isEmpty ? 'hidden' : 'visible',
+        visibility: isEmpty && !alwaysVisible ? 'hidden' : 'visible',
       }}
-      title={status}
+      title={status === 'empty' ? 'Click to set status' : status}
     />
   );
 }

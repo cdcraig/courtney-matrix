@@ -1,24 +1,20 @@
-export type Status = 'done' | 'wip' | 'review' | 'blocked' | 'deferred' | 'todo' | 'empty';
+export type Status = 'done' | 'wip' | 'blocked' | 'todo' | 'empty';
 
-export const STATUS_ORDER: Status[] = ['done', 'wip', 'review', 'blocked', 'deferred', 'todo', 'empty'];
-
-export function nextStatus(s: Status): Status {
-  const i = STATUS_ORDER.indexOf(s);
-  return STATUS_ORDER[(i + 1) % STATUS_ORDER.length];
-}
+export const STATUS_ORDER: Status[] = ['done', 'wip', 'blocked', 'todo', 'empty'];
 
 export interface Column {
   id: string;
   name: string;
   subtitle: string;
   status: Status;
+  image?: string;
 }
 
 export interface Task {
   id: string;
   name: string;
   status: Status;
-  cells: Record<string, Status>; // column id -> status
+  cells: Record<string, Status>;
   foundation?: boolean;
 }
 
@@ -31,7 +27,7 @@ export interface Group {
 
 export interface MatrixData {
   columns: Column[];
-  separatorAfter: number; // index after which to show separator
+  separatorAfter: number;
   groups: Group[];
 }
 
@@ -43,7 +39,7 @@ function id(prefix: string) {
 export function createDefaultData(): MatrixData {
   const cols: Column[] = [
     { id: 'claude', name: 'Claude', subtitle: 'MCP', status: 'wip' },
-    { id: 'chatgpt', name: 'ChatGPT', subtitle: 'MCP', status: 'review' },
+    { id: 'chatgpt', name: 'ChatGPT', subtitle: 'MCP', status: 'wip' },
     { id: '3rdparty', name: '3rd-party', subtitle: 'MCP', status: 'wip' },
     { id: 'voice', name: 'Courtney Voice', subtitle: '833/phone', status: 'wip' },
     { id: 'sms', name: 'SMS', subtitle: 'Text msg', status: 'wip' },
@@ -64,11 +60,39 @@ export function createDefaultData(): MatrixData {
   const groups: Group[] = [
     {
       id: id('g'),
-      name: 'MCP / embedded UI',
+      name: 'Foundation layers',
+      foundation: true,
+      tasks: [
+        { id: id('t'), name: 'Facility knowledge', status: 'blocked', foundation: true, cells: cellsFromArr(['blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked']) },
+        { id: id('t'), name: 'Authentication', status: 'wip', foundation: true, cells: cellsFromArr(['todo', 'todo', 'todo', 'todo', 'todo', 'todo', 'done', 'todo']) },
+        { id: id('t'), name: 'CourtsApp knowledge', status: 'wip', foundation: true, cells: cellsFromArr(['wip', 'wip', 'wip', 'wip', 'wip', 'wip', 'wip', 'wip']) },
+        { id: id('t'), name: 'Search availability', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
+        { id: id('t'), name: 'Booking', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
+        { id: id('t'), name: 'Charge payments', status: 'todo', foundation: true, cells: cellsFromArr(['todo', 'todo', 'todo', 'todo', 'todo', 'todo', 'todo', 'todo']) },
+        { id: id('t'), name: 'Account viewing', status: 'blocked', foundation: true, cells: cellsFromArr(['blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked']) },
+        { id: id('t'), name: 'Account editing', status: 'todo', foundation: true, cells: cellsFromArr(['todo', 'todo', 'todo', 'done', 'done', 'done', 'done', 'todo']) },
+        { id: id('t'), name: 'Dynamic prompts per modality', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
+        { id: id('t'), name: 'Zendesk support tickets', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
+        { id: id('t'), name: 'General knowledge', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
+      ],
+    },
+    {
+      id: id('g'),
+      name: 'MCP',
       tasks: [
         { id: id('t'), name: 'Embedded UI / MCP cards', status: 'done', cells: cellsFromArr(['done', 'done', null, null, null, null, 'done', null]) },
+        { id: id('t'), name: 'Dark mode error', status: 'todo', cells: cellsFromArr([null, null, null, null, null, null, null, null]) },
+      ],
+    },
+    {
+      id: id('g'),
+      name: 'Embedded UI',
+      tasks: [
         { id: id('t'), name: 'Thinking modal', status: 'done', cells: cellsFromArr([null, null, null, null, null, null, 'done', null]) },
-        { id: id('t'), name: 'Loading animation', status: 'done', cells: cellsFromArr([null, null, null, null, null, null, 'done', null]) },
+        { id: id('t'), name: 'New loading animation', status: 'done', cells: cellsFromArr([null, null, null, null, null, null, 'done', null]) },
+        { id: id('t'), name: 'Deployed to dev', status: 'todo', cells: cellsFromArr([null, null, null, null, null, null, null, null]) },
+        { id: id('t'), name: 'Multimodal feedback', status: 'todo', cells: cellsFromArr([null, null, null, null, null, null, null, null]) },
+        { id: id('t'), name: 'Minimize the chat', status: 'todo', cells: cellsFromArr([null, null, null, null, null, null, null, null]) },
       ],
     },
     {
@@ -92,36 +116,11 @@ export function createDefaultData(): MatrixData {
       name: 'Upcoming / to do',
       tasks: [],
     },
-    {
-      id: id('g'),
-      name: 'Foundation layers',
-      foundation: true,
-      tasks: [
-        { id: id('t'), name: 'Facility knowledge', status: 'blocked', foundation: true, cells: cellsFromArr(['blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked']) },
-        { id: id('t'), name: 'Authentication', status: 'wip', foundation: true, cells: cellsFromArr(['deferred', 'deferred', 'deferred', 'todo', 'todo', 'todo', 'done', 'todo']) },
-        { id: id('t'), name: 'CourtsApp knowledge', status: 'review', foundation: true, cells: cellsFromArr(['review', 'review', 'review', 'review', 'review', 'review', 'review', 'review']) },
-      ],
-    },
-    {
-      id: id('g'),
-      name: 'Tools',
-      foundation: true,
-      tasks: [
-        { id: id('t'), name: 'Search availability', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
-        { id: id('t'), name: 'Booking', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
-        { id: id('t'), name: 'Charge payments', status: 'deferred', foundation: true, cells: cellsFromArr(['deferred', 'deferred', 'deferred', 'deferred', 'deferred', 'deferred', 'todo', 'deferred']) },
-        { id: id('t'), name: 'Account viewing', status: 'blocked', foundation: true, cells: cellsFromArr(['blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked', 'blocked']) },
-        { id: id('t'), name: 'Account editing', status: 'deferred', foundation: true, cells: cellsFromArr(['deferred', 'deferred', 'deferred', 'done', 'done', 'done', 'done', 'deferred']) },
-        { id: id('t'), name: 'Dynamic prompts per modality', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
-        { id: id('t'), name: 'Zendesk support tickets', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
-        { id: id('t'), name: 'General knowledge', status: 'done', foundation: true, cells: cellsFromArr(['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done']) },
-      ],
-    },
   ];
 
   return {
     columns: cols,
-    separatorAfter: 2, // after index 2 (3rd-party), separator before voice
+    separatorAfter: 2,
     groups,
   };
 }
@@ -133,19 +132,15 @@ export function generateId(): string {
 export const STATUS_COLORS: Record<Status, string> = {
   done: '#4CAF50',
   wip: '#FF9800',
-  review: '#5C6BC0',
   blocked: '#E53935',
-  deferred: '#B0BEC5',
-  todo: '#ccc',
+  todo: '#B0BEC5',
   empty: 'transparent',
 };
 
 export const STATUS_LABELS: Record<Status, string> = {
   done: 'Done',
   wip: 'WIP',
-  review: 'Review',
   blocked: 'Blocked',
-  deferred: 'Deferred',
   todo: 'To do',
   empty: '',
 };
@@ -153,9 +148,7 @@ export const STATUS_LABELS: Record<Status, string> = {
 export const CELL_BG: Record<Status, string> = {
   done: 'rgba(76, 175, 80, 0.10)',
   wip: 'rgba(255, 152, 0, 0.08)',
-  review: 'rgba(92, 107, 188, 0.08)',
   blocked: 'rgba(229, 57, 53, 0.06)',
-  deferred: 'rgba(0, 0, 0, 0.02)',
   todo: 'rgba(0, 0, 0, 0.03)',
   empty: 'transparent',
 };
@@ -163,11 +156,29 @@ export const CELL_BG: Record<Status, string> = {
 export const CHIP_BG: Record<Status, string> = {
   done: 'rgba(76, 175, 80, 0.15)',
   wip: 'rgba(255, 152, 0, 0.15)',
-  review: 'rgba(92, 107, 188, 0.15)',
   blocked: 'rgba(229, 57, 53, 0.12)',
-  deferred: 'rgba(176, 190, 197, 0.20)',
   todo: 'rgba(0, 0, 0, 0.06)',
   empty: 'transparent',
 };
 
 export const STORAGE_KEY = 'courtney-matrix-data';
+
+const STATUS_PRIORITY: Record<Status, number> = {
+  blocked: 0,
+  todo: 1,
+  wip: 2,
+  done: 3,
+  empty: -1,
+};
+
+export function deriveTaskStatus(cells: Record<string, Status>): Status {
+  const statuses = Object.values(cells).filter(s => s !== 'empty');
+  if (statuses.length === 0) return 'todo';
+  let lowest: Status = 'done';
+  for (const s of statuses) {
+    if (STATUS_PRIORITY[s] < STATUS_PRIORITY[lowest]) {
+      lowest = s;
+    }
+  }
+  return lowest;
+}
