@@ -1,10 +1,25 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { MatrixData, Status, Task, Group, Column } from '../data';
-import { generateId } from '../data';
+import { generateId, deriveTaskStatus } from '../data';
+import type { Task as TaskType } from '../data';
 import { ColumnHeader } from './ColumnHeader';
 import { GroupHeader } from './GroupHeader';
 import { TaskRow } from './TaskRow';
 import { Legend } from './Legend';
+
+// Sort order: blocked=0, wip=1, todo=2, done=3
+const STATUS_SORT: Record<string, number> = {
+  blocked: 0, wip: 1, todo: 2, done: 3, empty: 4,
+};
+
+// Stable sort by status bucket — preserves manual order within each bucket
+function bucketSort(tasks: TaskType[]): TaskType[] {
+  return [...tasks].sort((a, b) => {
+    const aStatus = STATUS_SORT[deriveTaskStatus(a.cells)] ?? 4;
+    const bStatus = STATUS_SORT[deriveTaskStatus(b.cells)] ?? 4;
+    return aStatus - bStatus;
+  });
+}
 
 interface Props {
   data: MatrixData;
@@ -71,7 +86,14 @@ export function Matrix({ data, onChange, onUndo }: Props) {
   }, [labelWidth]);
 
   const update = (partial: Partial<MatrixData>) => {
-    onChange({ ...data, ...partial });
+    const merged = { ...data, ...partial };
+    // Always keep tasks sorted by status bucket (blocked > wip > todo > done)
+    // but preserve manual order within each bucket
+    merged.groups = merged.groups.map(g => ({
+      ...g,
+      tasks: bucketSort(g.tasks),
+    }));
+    onChange(merged);
   };
 
   const updateColumn = (colId: string, patch: Partial<Column>) => {
@@ -224,7 +246,9 @@ export function Matrix({ data, onChange, onUndo }: Props) {
       return g;
     });
 
-    onChange({ ...data, groups: newGroups });
+    // Bucket-sort after drag to maintain status grouping
+    const sortedGroups = newGroups.map(g => ({ ...g, tasks: bucketSort(g.tasks) }));
+    onChange({ ...data, groups: sortedGroups });
     dragInfo.current = null;
     dropTargetRef.current = null;
     setDropTarget(null);
