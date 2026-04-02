@@ -13,9 +13,10 @@ interface Props {
   onGroupDragOver: () => void;
   onGroupDragEnd: () => void;
   isGroupDropTarget?: boolean;
+  linearUrl?: string;
 }
 
-export function GroupHeader({ name, colSpan, onEdit, onRemove, onDragOver, onDragLeave, onDrop, isDropTarget, onGroupDragStart, onGroupDragOver, onGroupDragEnd, isGroupDropTarget }: Props) {
+export function GroupHeader({ name, colSpan, onEdit, onRemove, onDragOver, onDragLeave, onDrop, isDropTarget, onGroupDragStart, onGroupDragOver, onGroupDragEnd, isGroupDropTarget, linearUrl }: Props) {
   return (
     <tr
       className={`group-header-row ${isDropTarget ? 'drop-target' : ''} ${isGroupDropTarget ? 'group-drop-target' : ''}`}
@@ -61,6 +62,18 @@ export function GroupHeader({ name, colSpan, onEdit, onRemove, onDragOver, onDra
         >
           {name}
         </span>
+        {linearUrl && (
+          <a
+            href={linearUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="linear-link linear-link-group"
+            title="Open project in Linear"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img src="https://images.seeklogo.com/logo-png/58/2/linear-app-icon-logo-png_seeklogo-586481.png" width="14" height="14" alt="Linear" />
+          </a>
+        )}
         <button className="group-remove-btn" onClick={onRemove} title="Remove group">
           ×
         </button>

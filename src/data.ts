@@ -8,6 +8,7 @@ export interface Column {
   subtitle: string;
   status: Status;
   image?: string;
+  linearUrl?: string;
 }
 
 export interface Task {
@@ -16,6 +17,7 @@ export interface Task {
   status: Status;
   cells: Record<string, Status>;
   foundation?: boolean;
+  linearUrl?: string;
 }
 
 export interface Group {
@@ -23,6 +25,7 @@ export interface Group {
   name: string;
   tasks: Task[];
   foundation?: boolean;
+  linearUrl?: string;
 }
 
 export interface MatrixData {
@@ -170,6 +173,23 @@ const STATUS_PRIORITY: Record<Status, number> = {
   done: 3,
   empty: -1,
 };
+
+// Sort order for display: blocked, todo, wip, done
+const SORT_ORDER: Record<Status, number> = {
+  blocked: 0,
+  todo: 1,
+  wip: 2,
+  done: 3,
+  empty: 4,
+};
+
+export function sortTasks(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const aStatus = deriveTaskStatus(a.cells);
+    const bStatus = deriveTaskStatus(b.cells);
+    return SORT_ORDER[aStatus] - SORT_ORDER[bStatus];
+  });
+}
 
 export function deriveTaskStatus(cells: Record<string, Status>): Status {
   const statuses = Object.values(cells).filter(s => s !== 'empty');

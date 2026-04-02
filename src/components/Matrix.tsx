@@ -1,16 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { MatrixData, Status, Task, Group, Column } from '../data';
-import { generateId } from '../data';
+import { generateId, sortTasks } from '../data';
 import { ColumnHeader } from './ColumnHeader';
 import { GroupHeader } from './GroupHeader';
 import { TaskRow } from './TaskRow';
 import { Legend } from './Legend';
-import { StatusPicker } from './StatusPicker';
 
 interface Props {
   data: MatrixData;
   onChange: (data: MatrixData) => void;
-  onReset: () => void;
+  onUndo: () => void;
 }
 
 interface DragInfo {
@@ -22,7 +21,7 @@ interface DragInfo {
 
 const LABEL_WIDTH_KEY = 'courtney-matrix-label-width';
 
-export function Matrix({ data, onChange, onReset }: Props) {
+export function Matrix({ data, onChange, onUndo }: Props) {
   const [addingTaskGroup, setAddingTaskGroup] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState('');
   const dragInfo = useRef<DragInfo | null>(null);
@@ -36,8 +35,9 @@ export function Matrix({ data, onChange, onReset }: Props) {
     return stored ? parseInt(stored, 10) : 300;
   });
 
-  // Column header status picker
-  const [colPicker, setColPicker] = useState<{ colId: string; x: number; y: number } | null>(null);
+  // Column drag
+  const colDragFrom = useRef<number | null>(null);
+  const [colDropTarget, setColDropTarget] = useState<number | null>(null);
 
   useEffect(() => {
     localStorage.setItem(LABEL_WIDTH_KEY, String(labelWidth));
@@ -263,18 +263,31 @@ export function Matrix({ data, onChange, onReset }: Props) {
     setGroupDropTarget(null);
   }, [data, onChange]);
 
-  // Column header status picker
-  const handleColStatusClick = useCallback((colId: string, e: React.MouseEvent) => {
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setColPicker({ colId, x: rect.left, y: rect.bottom + 4 });
+  // Column drag handlers
+  const handleColDragStart = useCallback((index: number) => {
+    colDragFrom.current = index;
   }, []);
 
-  const handleColStatusSelect = useCallback((status: Status) => {
-    if (colPicker) {
-      updateColumn(colPicker.colId, { status });
+  const handleColDragOver = useCallback((index: number) => {
+    setColDropTarget(index);
+  }, []);
+
+  const handleColDragEnd = useCallback(() => {
+    const from = colDragFrom.current;
+    const to = colDropTarget;
+    if (from === null || to === null || from === to) {
+      colDragFrom.current = null;
+      setColDropTarget(null);
+      return;
     }
-    setColPicker(null);
-  }, [colPicker]);
+    const newCols = [...data.columns];
+    const [moved] = newCols.splice(from, 1);
+    const insertAt = to > from ? to - 1 : to;
+    newCols.splice(insertAt, 0, moved);
+    onChange({ ...data, columns: newCols });
+    colDragFrom.current = null;
+    setColDropTarget(null);
+  }, [data, colDropTarget, onChange]);
 
   const totalCols = 1 + data.columns.length + 1;
 
@@ -305,9 +318,12 @@ export function Matrix({ data, onChange, onReset }: Props) {
                     column={col}
                     onEditName={(name) => updateColumn(col.id, { name })}
                     onEditSubtitle={(subtitle) => updateColumn(col.id, { subtitle })}
-                    onStatusClick={(e) => handleColStatusClick(col.id, e)}
                     onRemove={() => removeColumn(col.id)}
                     onImageChange={(image) => updateColumn(col.id, { image })}
+                    onDragStart={() => handleColDragStart(i)}
+                    onDragOver={() => handleColDragOver(i)}
+                    onDragEnd={handleColDragEnd}
+                    isDropTarget={colDropTarget === i}
                   />
                 );
                 return cells;
@@ -352,16 +368,8 @@ export function Matrix({ data, onChange, onReset }: Props) {
       </div>
       <div className="footer-bar">
         <Legend />
-        <button className="reset-btn" onClick={onReset}>Reset to defaults</button>
+        <button className="undo-btn" onClick={onUndo} title="Undo last change">↩ Undo</button>
       </div>
-      {colPicker && (
-        <StatusPicker
-          current={data.columns.find(c => c.id === colPicker.colId)?.status || 'empty'}
-          onSelect={handleColStatusSelect}
-          onClose={() => setColPicker(null)}
-          position={{ x: colPicker.x, y: colPicker.y }}
-        />
-      )}
     </div>
   );
 }
@@ -436,8 +444,9 @@ function GroupRows({
         onGroupDragOver={() => onGroupDragOver(groupIndex)}
         onGroupDragEnd={onGroupDragEnd}
         isGroupDropTarget={groupDropTarget === groupIndex}
+        linearUrl={group.linearUrl}
       />
-      {group.tasks.map((task: Task, index: number) => (
+      {sortTasks(group.tasks).map((task: Task, index: number) => (
         <TaskRow
           key={task.id}
           task={task}

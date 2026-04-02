@@ -90,6 +90,18 @@ export function TaskRow({ task, columns, separatorAfter, onUpdateTask, onRemove,
                 >
                   {task.name}
                 </span>
+                {task.linearUrl && (
+                  <a
+                    href={task.linearUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="linear-link"
+                    title="Open in Linear"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <img src="https://images.seeklogo.com/logo-png/58/2/linear-app-icon-logo-png_seeklogo-586481.png" width="14" height="14" alt="Linear" />
+                  </a>
+                )}
                 {derived !== 'empty' && (
                   <span
                     className="task-chip"

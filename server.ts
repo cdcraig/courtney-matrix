@@ -8,13 +8,64 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3456');
 const DATA_DIR = process.env.DATA_DIR || process.cwd();
 const DATA_FILE = join(DATA_DIR, 'data.json');
+const HISTORY_FILE = join(DATA_DIR, 'history.json');
 const PASSWORD = process.env.MATRIX_PASSWORD || 'courtney2026';
+const MAX_HISTORY = 20;
 
 console.log(`Config: PORT=${PORT}, DATA_DIR=${DATA_DIR}, DATA_FILE=${DATA_FILE}`);
 
 app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: '50mb' }));
+
+// Image API — store images as separate files to keep data.json small
+const IMAGES_DIR = join(DATA_DIR, 'images');
+import { mkdirSync } from 'fs';
+try { mkdirSync(IMAGES_DIR, { recursive: true }); } catch {}
+
+app.post('/api/image/:id', (req, res) => {
+  const { data } = req.body; // base64 data URI
+  if (!data) { res.status(400).json({ error: 'no data' }); return; }
+  const filePath = join(IMAGES_DIR, `${req.params.id}.txt`);
+  writeFileSync(filePath, data);
+  res.json({ ok: true, url: `/api/image/${req.params.id}` });
+});
+
+app.get('/api/image/:id', (_req, res) => {
+  const filePath = join(IMAGES_DIR, `${_req.params.id}.txt`);
+  if (existsSync(filePath)) {
+    const dataUri = readFileSync(filePath, 'utf-8');
+    // Extract mime type and send as image
+    const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      const buffer = Buffer.from(match[2], 'base64');
+      res.type(match[1]).send(buffer);
+    } else {
+      res.status(400).send('Invalid image data');
+    }
+  } else {
+    res.status(404).send('Not found');
+  }
+});
+
+// Undo history helpers
+function loadHistory(): string[] {
+  if (existsSync(HISTORY_FILE)) {
+    try { return JSON.parse(readFileSync(HISTORY_FILE, 'utf-8')); } catch { }
+  }
+  return [];
+}
+
+function saveHistory(history: string[]) {
+  writeFileSync(HISTORY_FILE, JSON.stringify(history));
+}
+
+function pushHistory(data: string) {
+  const history = loadHistory();
+  history.push(data);
+  if (history.length > MAX_HISTORY) history.shift();
+  saveHistory(history);
+}
 
 // Password protection
 const LOGIN_PAGE = `<!DOCTYPE html>
@@ -51,7 +102,7 @@ app.get('/auth', (_req, res) => {
 
 app.post('/auth', express.urlencoded({ extended: false }), (req, res) => {
   if (req.body.password === PASSWORD) {
-    res.cookie('matrix_auth', '1', { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' });
+    res.cookie('matrix_auth', '1', { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax', path: '/' });
     res.redirect('/');
   } else {
     res.redirect('/auth?error=1');
@@ -63,6 +114,11 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/auth')) return next();
   if (req.path === '/api/health') return next();
   if (req.cookies?.matrix_auth === '1') return next();
+  // Return 401 for API routes so fetch doesn't follow redirects
+  if (req.path.startsWith('/api/')) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   res.redirect('/auth');
 });
 
@@ -82,8 +138,30 @@ app.get('/api/data', (_req, res) => {
 });
 
 app.post('/api/data', (req, res) => {
+  // Save current state to history before overwriting
+  if (existsSync(DATA_FILE)) {
+    pushHistory(readFileSync(DATA_FILE, 'utf-8'));
+  }
   writeFileSync(DATA_FILE, JSON.stringify(req.body, null, 2));
   res.json({ ok: true });
+});
+
+// Undo API
+app.post('/api/undo', (_req, res) => {
+  const history = loadHistory();
+  if (history.length === 0) {
+    res.json({ ok: false, message: 'Nothing to undo' });
+    return;
+  }
+  const previous = history.pop()!;
+  saveHistory(history);
+  writeFileSync(DATA_FILE, previous);
+  res.json({ ok: true, data: JSON.parse(previous) });
+});
+
+app.get('/api/undo/count', (_req, res) => {
+  const history = loadHistory();
+  res.json({ count: history.length });
 });
 
 // Serve frontend
@@ -97,6 +175,33 @@ app.get('/{*splat}', (_req, res) => {
     res.status(404).send('Build not found. Run: bun run build');
   }
 });
+
+// On startup, migrate any base64 images out of data.json into separate files
+function migrateImages() {
+  if (!existsSync(DATA_FILE)) return;
+  try {
+    const raw = readFileSync(DATA_FILE, 'utf-8');
+    const data = JSON.parse(raw);
+    let changed = false;
+    for (const col of data.columns || []) {
+      if (col.image && col.image.startsWith('data:')) {
+        const imgPath = join(IMAGES_DIR, `${col.id}.txt`);
+        writeFileSync(imgPath, col.image);
+        col.image = `/api/image/${col.id}`;
+        changed = true;
+        console.log(`Migrated image for column: ${col.name}`);
+      }
+    }
+    if (changed) {
+      writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+      console.log('Image migration complete — data.json reduced');
+    }
+  } catch (e) {
+    console.error('Image migration failed:', e);
+  }
+}
+
+migrateImages();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Courtney Matrix running on http://localhost:${PORT}`);

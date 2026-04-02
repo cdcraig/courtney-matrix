@@ -1,17 +1,19 @@
 import { useRef } from 'react';
 import type { Column } from '../data';
-import { StatusDot } from './StatusDot';
 
 interface Props {
   column: Column;
   onEditName: (name: string) => void;
   onEditSubtitle: (subtitle: string) => void;
-  onStatusClick: (e: React.MouseEvent) => void;
   onRemove: () => void;
   onImageChange: (image: string | undefined) => void;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDragEnd: () => void;
+  isDropTarget?: boolean;
 }
 
-export function ColumnHeader({ column, onEditName, onEditSubtitle, onStatusClick, onRemove, onImageChange }: Props) {
+export function ColumnHeader({ column, onEditName, onEditSubtitle, onRemove, onImageChange, onDragStart, onDragOver, onDragEnd, isDropTarget }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -19,14 +21,50 @@ export function ColumnHeader({ column, onEditName, onEditSubtitle, onStatusClick
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      onImageChange(reader.result as string);
+      const dataUri = reader.result as string;
+      // Upload to server, then store the URL reference
+      fetch(`/api/image/${column.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ data: dataUri }),
+      })
+        .then(r => r.json())
+        .then(result => {
+          if (result.ok) {
+            onImageChange(result.url);
+          }
+        })
+        .catch(() => {
+          // Fallback: store inline (local dev)
+          onImageChange(dataUri);
+        });
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
   return (
-    <th className="col-header">
+    <th
+      className={`col-header ${isDropTarget ? 'col-drop-target' : ''}`}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('application/x-col-drag', column.id);
+        onDragStart();
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('application/x-col-drag')) {
+          e.preventDefault();
+          onDragOver();
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDragEnd();
+      }}
+      onDragEnd={onDragEnd}
+    >
       <div className="col-header-inner">
         <button className="col-remove-btn" onClick={onRemove} title="Remove column">×</button>
         <div
@@ -75,9 +113,6 @@ export function ColumnHeader({ column, onEditName, onEditSubtitle, onStatusClick
         >
           {column.subtitle}
         </span>
-        <div className="col-header-dot" onClick={onStatusClick}>
-          <StatusDot status={column.status} onClick={() => {}} size={12} alwaysVisible />
-        </div>
       </div>
     </th>
   );
