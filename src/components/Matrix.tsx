@@ -25,6 +25,7 @@ export function Matrix({ data, onChange, onUndo }: Props) {
   const [addingTaskGroup, setAddingTaskGroup] = useState<string | null>(null);
   const [newTaskName, setNewTaskName] = useState('');
   const dragInfo = useRef<DragInfo | null>(null);
+  const dropTargetRef = useRef<{ groupId: string; index: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ groupId: string; index: number } | null>(null);
   const [groupDropTarget, setGroupDropTarget] = useState<number | null>(null);
   const groupDropRef = useRef<number | null>(null);
@@ -181,18 +182,21 @@ export function Matrix({ data, onChange, onUndo }: Props) {
   }, []);
 
   const handleDragOver = useCallback((groupId: string, index: number) => {
+    dropTargetRef.current = { groupId, index };
     setDropTarget({ groupId, index });
   }, []);
 
   const handleDragEnd = useCallback(() => {
-    if (!dragInfo.current || dragInfo.current.type !== 'task' || !dropTarget) {
+    const target = dropTargetRef.current;
+    if (!dragInfo.current || dragInfo.current.type !== 'task' || !target) {
       dragInfo.current = null;
+      dropTargetRef.current = null;
       setDropTarget(null);
       return;
     }
 
     const { taskId, fromGroupId } = dragInfo.current;
-    const { groupId: toGroupId, index: toIndex } = dropTarget;
+    const { groupId: toGroupId, index: toIndex } = target;
 
     const fromGroup = data.groups.find((g) => g.id === fromGroupId);
     const task = fromGroup?.tasks.find((t) => t.id === taskId);
@@ -222,10 +226,12 @@ export function Matrix({ data, onChange, onUndo }: Props) {
 
     onChange({ ...data, groups: newGroups });
     dragInfo.current = null;
+    dropTargetRef.current = null;
     setDropTarget(null);
-  }, [data, dropTarget, onChange]);
+  }, [data, onChange]);
 
   const handleDragLeave = useCallback(() => {
+    dropTargetRef.current = null;
     setDropTarget(null);
   }, []);
 
