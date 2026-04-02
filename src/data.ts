@@ -174,11 +174,11 @@ const STATUS_PRIORITY: Record<Status, number> = {
   empty: -1,
 };
 
-// Sort order for display: blocked, todo, wip, done
+// Sort order for display: blocked, wip, todo, done
 const SORT_ORDER: Record<Status, number> = {
   blocked: 0,
-  todo: 1,
-  wip: 2,
+  wip: 1,
+  todo: 2,
   done: 3,
   empty: 4,
 };
