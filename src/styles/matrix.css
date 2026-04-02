@@ -380,6 +380,68 @@ body {
   flex-shrink: 0;
 }
 
+.task-label-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.task-label-chip:hover {
+  opacity: 0.8;
+}
+.task-label-add {
+  font-size: 10px;
+  color: #bbb;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 1px 4px;
+}
+.task-label-add:hover {
+  color: #888;
+}
+.label-preview {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.label-custom-divider {
+  height: 1px;
+  background: #eee;
+  margin: 4px 0;
+}
+.label-custom-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+}
+.label-custom-input {
+  font-size: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+  width: 100px;
+}
+.label-custom-input:focus {
+  border-color: #5e6ad2;
+}
+.label-custom-ok {
+  font-size: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #5e6ad2;
+  padding: 2px 4px;
+}
+
 .linear-link {
   display: inline-flex;
   align-items: center;

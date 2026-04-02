@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
-import type { Task, Column, Status } from '../data';
-import { STATUS_COLORS, STATUS_LABELS, CELL_BG, CHIP_BG, deriveTaskStatus } from '../data';
+import type { Task, Column, Status, TaskLabel } from '../data';
+import { STATUS_COLORS, STATUS_LABELS, CELL_BG, CHIP_BG, LABEL_STYLES, deriveTaskStatus } from '../data';
 import { StatusDot } from './StatusDot';
 import { StatusPicker } from './StatusPicker';
+import { LabelPicker } from './LabelPicker';
 
 interface Props {
   task: Task;
@@ -23,6 +24,7 @@ export function TaskRow({ task, columns, separatorAfter, onUpdateTask, onRemove,
   const [editValue, setEditValue] = useState(task.name);
   const [hovering, setHovering] = useState(false);
   const [picker, setPicker] = useState<{ colId: string; x: number; y: number } | null>(null);
+  const [labelPicker, setLabelPicker] = useState<{ x: number; y: number } | null>(null);
 
   const handleSave = () => {
     setEditing(false);
@@ -113,6 +115,33 @@ export function TaskRow({ task, columns, separatorAfter, onUpdateTask, onRemove,
                     {STATUS_LABELS[derived]}
                   </span>
                 )}
+                {task.label ? (
+                  <span
+                    className="task-label-chip"
+                    style={{
+                      backgroundColor: LABEL_STYLES[task.label]?.bg || '#4a5568',
+                      color: LABEL_STYLES[task.label]?.color || '#fff',
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const rect = (e.target as HTMLElement).getBoundingClientRect();
+                      setLabelPicker({ x: rect.left, y: rect.bottom + 4 });
+                    }}
+                  >
+                    {task.label}
+                  </span>
+                ) : hovering && (
+                  <span
+                    className="task-label-add"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const rect = (e.target as HTMLElement).getBoundingClientRect();
+                      setLabelPicker({ x: rect.left, y: rect.bottom + 4 });
+                    }}
+                  >
+                    + label
+                  </span>
+                )}
               </>
             )}
             {hovering && (
@@ -148,6 +177,17 @@ export function TaskRow({ task, columns, separatorAfter, onUpdateTask, onRemove,
           onSelect={handlePickerSelect}
           onClose={() => setPicker(null)}
           position={{ x: picker.x, y: picker.y }}
+        />
+      )}
+      {labelPicker && (
+        <LabelPicker
+          current={task.label || ''}
+          onSelect={(label: TaskLabel) => {
+            onUpdateTask({ ...task, label: label || undefined });
+            setLabelPicker(null);
+          }}
+          onClose={() => setLabelPicker(null)}
+          position={{ x: labelPicker.x, y: labelPicker.y }}
         />
       )}
     </>

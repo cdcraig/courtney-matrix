@@ -11,6 +11,18 @@ export interface Column {
   linearUrl?: string;
 }
 
+export type TaskLabel = 'MVP' | 'Enhancement' | 'Bug' | 'Research' | 'Design' | '';
+
+export const TASK_LABELS: TaskLabel[] = ['MVP', 'Enhancement', 'Bug', 'Research', 'Design', ''];
+
+export const LABEL_STYLES: Record<string, { bg: string; color: string }> = {
+  'MVP': { bg: '#5e6ad2', color: '#fff' },
+  'Enhancement': { bg: '#f2994a', color: '#fff' },
+  'Bug': { bg: '#eb5757', color: '#fff' },
+  'Research': { bg: '#26b5ce', color: '#fff' },
+  'Design': { bg: '#9b59b6', color: '#fff' },
+};
+
 export interface Task {
   id: string;
   name: string;
@@ -18,6 +30,7 @@ export interface Task {
   cells: Record<string, Status>;
   foundation?: boolean;
   linearUrl?: string;
+  label?: TaskLabel;
 }
 
 export interface Group {
