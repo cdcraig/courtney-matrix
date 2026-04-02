@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { MatrixData, Status, Task, Group, Column } from '../data';
-import { generateId, sortTasks } from '../data';
+import { generateId } from '../data';
 import { ColumnHeader } from './ColumnHeader';
 import { GroupHeader } from './GroupHeader';
 import { TaskRow } from './TaskRow';
@@ -446,7 +446,7 @@ function GroupRows({
         isGroupDropTarget={groupDropTarget === groupIndex}
         linearUrl={group.linearUrl}
       />
-      {sortTasks(group.tasks).map((task: Task, index: number) => (
+      {group.tasks.map((task: Task, index: number) => (
         <TaskRow
           key={task.id}
           task={task}
