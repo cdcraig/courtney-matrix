@@ -90,6 +90,7 @@ export function TaskRow({ task, columns, separatorAfter, onUpdateTask, onRemove,
                 >
                   {task.name}
                 </span>
+                {/* Linear icon hidden for now — data preserved
                 {task.linearUrl && (
                   <a
                     href={task.linearUrl}
@@ -102,6 +103,7 @@ export function TaskRow({ task, columns, separatorAfter, onUpdateTask, onRemove,
                     <img src="https://images.seeklogo.com/logo-png/58/2/linear-app-icon-logo-png_seeklogo-586481.png" width="14" height="14" alt="Linear" />
                   </a>
                 )}
+                */}
                 {derived !== 'empty' && (
                   <span
                     className="task-chip"
